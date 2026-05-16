@@ -1,0 +1,24 @@
+
+
+services:
+  codeintel:
+    build: .
+    container_name: codeintel-api
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - .:/app
+      - ./repos:/app/repos
+
+    env_file:
+      - .env
+
+    # Lets the container reach Ollama running on your host machine.
+    # On Windows / Mac this works automatically via host.docker.internal.
+    # On Linux, this line maps it correctly:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    restart: unless-stopped
