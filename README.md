@@ -1,6 +1,6 @@
 # 🧠 Codebase Intelligence Platform
 
-An AI-powered code understanding platform that lets developers analyze, search, and chat with any codebase using Retrieval-Augmented Generation (RAG), hybrid search, call graph analysis, and automated security scanning.
+An AI-powered code understanding platform that enables developers to analyze, search, and chat with any codebase using Retrieval-Augmented Generation (RAG), hybrid search, call graph analysis, and automated security scanning.
 
 Supports Python, Java, JavaScript, TypeScript, and C++ repositories.
 
@@ -20,7 +20,7 @@ Ask questions like:
 - *Where is request dispatching handled?*
 - *What functions call login()?*
 
-Answers are generated using a local LLM via :contentReference[oaicite:1]{index=1}.
+Answers are generated using a local LLM via Ollama.
 
 ### 🔀 Call Graph Visualization
 - Static graph generation
@@ -43,8 +43,8 @@ Analyze:
 
 ### 🐳 Containerized Deployment
 Fully containerized using:
-- :contentReference[oaicite:2]{index=2}
-- :contentReference[oaicite:3]{index=3}
+- Docker
+- Docker Compose
 
 ---
 
@@ -112,11 +112,11 @@ codebase-rag/
 ## ⚙️ Tech Stack
 
 ### Backend
-- :contentReference[oaicite:4]{index=4}
+- FastAPI
 - Python 3.11
 
 ### AI / Retrieval
-- :contentReference[oaicite:5]{index=5}
+- FAISS
 - Sentence Transformers
 - BM25
 - Transformers
@@ -127,8 +127,8 @@ codebase-rag/
 - Pyvis
 
 ### Deployment
-- :contentReference[oaicite:6]{index=6}
-- :contentReference[oaicite:7]{index=7}
+- Docker
+- Docker Compose
 
 ---
 
@@ -179,7 +179,7 @@ http://localhost:8000
 
 ## 📈 Performance
 
-Evaluated on the :contentReference[oaicite:8]{index=8} Flask repository:
+Evaluated on the Flask repository:
 
 | Metric | Hybrid + Rerank |
 |--------|-----------------|
