@@ -307,6 +307,59 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
 }
 .speak-btn:hover  { color: var(--blue); }
 .speak-btn.active { color: var(--green); }
+
+/* ── Agent mode toggle ── */
+.mode-toggle {
+  display: flex; align-items: center; gap: 0;
+  background: var(--border); border-radius: var(--radius);
+  overflow: hidden; flex-shrink: 0;
+}
+.mode-btn {
+  padding: 7px 13px; border: none; font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; font-weight: 700; cursor: pointer; transition: all .15s;
+  background: transparent; color: var(--muted);
+}
+.mode-btn.active { background: var(--accent); color: #000; }
+.mode-btn:not(.active):hover { color: var(--text); }
+
+/* ── Agent response ── */
+.agent-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(59,130,246,.12); border: 1px solid rgba(59,130,246,.25);
+  border-radius: 20px; padding: 3px 10px; font-size: 10px;
+  color: var(--blue); font-weight: 700; margin-bottom: 8px;
+}
+.agent-tools {
+  display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px;
+}
+.agent-tool-chip {
+  padding: 3px 9px; background: rgba(59,130,246,.08);
+  border: 1px solid rgba(59,130,246,.2); border-radius: 20px;
+  font-size: 10px; color: var(--blue);
+}
+.agent-steps {
+  margin-top: 10px; border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.agent-steps-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px; background: rgba(255,255,255,.03);
+  border-bottom: 1px solid var(--border); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 1px; color: var(--muted);
+  cursor: pointer; user-select: none;
+}
+.agent-steps-hdr:hover { color: var(--text); }
+.agent-steps-body { display: none; }
+.agent-steps-body.open { display: block; }
+.agent-step {
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.agent-step:last-child { border-bottom: none; }
+.agent-step-tool { color: var(--blue); font-weight: 700; margin-bottom: 3px; }
+.agent-step-input { color: var(--muted); font-size: 10px; margin-bottom: 4px; word-break: break-all; }
+.agent-step-obs { color: var(--text); font-size: 11px; white-space: pre-wrap;
+  max-height: 120px; overflow-y: auto; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -401,6 +454,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text);
         </div>
       </div>
       <div class="input-bar">
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="modeChatBtn" onclick="setMode('chat')">💬 Chat</button>
+          <button class="mode-btn" id="modeAgentBtn" onclick="setMode('agent')">🤖 Agent</button>
+        </div>
         <div class="input-wrap">
           <span class="input-prompt">&gt;_</span>
           <input id="queryInput" placeholder="Ask about your codebase…" autocomplete="off"
@@ -436,6 +493,17 @@ let history         = [];
 let displayMessages = [];
 let currentRepo     = '';
 let _lastQuery      = '';   // used for interactive graph
+let _agentMode      = false; // ← agent mode toggle
+
+// ── Mode switching ─────────────────────────────────────────────────────────────
+function setMode(mode) {
+  _agentMode = mode === 'agent';
+  document.getElementById('modeChatBtn').classList.toggle('active', !_agentMode);
+  document.getElementById('modeAgentBtn').classList.toggle('active', _agentMode);
+  document.getElementById('queryInput').placeholder = _agentMode
+    ? 'Agent mode: ask multi-step questions…'
+    : 'Ask about your codebase…';
+}
 
 // ── Persistence ────────────────────────────────────────────────────────────────
 function loadAllChats() {
@@ -519,8 +587,9 @@ function switchChat(id) {
   else {
     hideWelcome();
     displayMessages.forEach(m => {
-      if (m.type === 'user') renderUserMsg(m.text);
-      else                   renderBotMsg(m.text, m.results, m.callers, m.graph, m.query, false);
+      if (m.type === 'user')       renderUserMsg(m.text);
+      else if (m.type === 'agent') renderAgentMsg(m.text, m.toolsUsed, m.steps, null, false);
+      else                         renderBotMsg(m.text, m.results, m.callers, m.graph, m.query, false);
     });
   }
   renderSessionsList(); scrollBot();
@@ -621,7 +690,7 @@ async function sendQuery() {
   if (!currentChatId) { currentChatId = 'chat_' + Date.now(); }
 
   _lastQuery = query;
-  _userScrolled = false; // new message — resume auto-scroll
+  _userScrolled = false;
   hideWelcome();
   addUserMessage(query);
   history.push({role:'user', content:query});
@@ -629,6 +698,17 @@ async function sendQuery() {
   const tipId = appendTypingEl();
   document.getElementById('sendBtn').disabled = true;
 
+  if (_agentMode) {
+    await sendAgentQuery(query, tipId);
+  } else {
+    await sendChatQuery(query, tipId);
+  }
+
+  document.getElementById('sendBtn').disabled = false;
+  input.focus();
+}
+
+async function sendChatQuery(query, tipId) {
   try {
     const r = await fetch(`${API}/chat`, {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -637,7 +717,6 @@ async function sendQuery() {
     const d = await r.json();
     removeTyping(tipId);
     if (r.ok) {
-      // Render with typewriter animation
       addBotMessage(d.answer, d.results, d.callers, d.graph, query, true);
       history.push({role:'assistant', content:d.answer});
       if (history.length > 20) history = history.slice(-20);
@@ -651,9 +730,30 @@ async function sendQuery() {
     addBotMessage('Cannot reach API.', null, null, null, '', false);
     history.pop();
   }
+}
 
-  document.getElementById('sendBtn').disabled = false;
-  input.focus();
+async function sendAgentQuery(query, tipId) {
+  try {
+    const r = await fetch(`${API}/agent-chat`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({query, history: history.slice(0,-1)}),
+    });
+    const d = await r.json();
+    removeTyping(tipId);
+    if (r.ok) {
+      addAgentMessage(d.answer, d.tools_used || [], d.steps || [], d.error);
+      history.push({role:'assistant', content:d.answer});
+      if (history.length > 20) history = history.slice(-20);
+      saveCurrentChat();
+    } else {
+      addBotMessage(`❌ ${d.detail || 'Agent error'}`, null, null, null, '', false);
+      history.pop();
+    }
+  } catch {
+    removeTyping(tipId);
+    addBotMessage('Cannot reach API.', null, null, null, '', false);
+    history.pop();
+  }
 }
 
 // ── Message renderers ──────────────────────────────────────────────────────────
@@ -664,6 +764,71 @@ function addUserMessage(text) {
 function addBotMessage(text, results, callers, graph, query, animate) {
   displayMessages.push({type:'bot', text, results, callers, graph, query});
   renderBotMsg(text, results, callers, graph, query, animate);
+}
+
+function addAgentMessage(answer, toolsUsed, steps, error) {
+  displayMessages.push({type:'agent', text: answer, toolsUsed, steps});
+  renderAgentMsg(answer, toolsUsed, steps, error, true);
+}
+
+function renderAgentMsg(answer, toolsUsed, steps, error, animate) {
+  const el = document.createElement('div');
+  el.className = 'msg bot';
+
+  // Tools used chips
+  const toolChips = (toolsUsed || []).map(t =>
+    `<span class="agent-tool-chip">⚙ ${esc(t)}</span>`
+  ).join('');
+
+  // Steps accordion
+  let stepsHtml = '';
+  if (steps && steps.length) {
+    const stepRows = steps.map((s, i) => `
+      <div class="agent-step">
+        <div class="agent-step-tool">⚙ ${esc(s.tool)}</div>
+        <div class="agent-step-input">Input: ${esc(JSON.stringify(s.input))}</div>
+        <div class="agent-step-obs">${esc(s.observation)}</div>
+      </div>`).join('');
+    const stepsId = 'steps-' + Date.now();
+    stepsHtml = `<div class="agent-steps">
+      <div class="agent-steps-hdr" onclick="toggleSteps('${stepsId}')">
+        <span>🔍 Agent Steps (${steps.length})</span>
+        <span id="stepsArrow-${stepsId}">▸</span>
+      </div>
+      <div class="agent-steps-body" id="${stepsId}">${stepRows}</div>
+    </div>`;
+  }
+
+  const answerId = 'answer-' + Date.now();
+  el.innerHTML = `
+    <div class="msg-role">Agent
+      <button class="speak-btn" data-msg-id="${answerId}" onclick="speakById(this)">🔊</button>
+    </div>
+    <div class="bubble">
+      <div class="agent-badge">🤖 Agent Mode</div>
+      ${toolChips ? `<div class="agent-tools">${toolChips}</div>` : ''}
+      <span class="answer-text" id="${answerId}"></span>
+      ${stepsHtml}
+    </div>`;
+
+  document.getElementById('messages').appendChild(el);
+
+  const answerSpan = el.querySelector('.answer-text');
+  if (animate && answer) {
+    typewriter(answerSpan, answer);
+  } else {
+    answerSpan.innerHTML = answer || (error ? `❌ ${error}` : 'No answer.');
+  }
+
+  scrollBot();
+}
+
+function toggleSteps(id) {
+  const body  = document.getElementById(id);
+  const arrow = document.getElementById('stepsArrow-' + id);
+  if (!body) return;
+  const open = body.classList.toggle('open');
+  if (arrow) arrow.textContent = open ? '▾' : '▸';
 }
 
 function renderUserMsg(text) {
