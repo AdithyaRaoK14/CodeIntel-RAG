@@ -261,7 +261,7 @@ python -m mcp_server.run_standalone
 | Voice transcription | faster-whisper |
 | Configuration | pydantic-settings + `.env` |
 | Containerisation | Docker + Docker Compose |
-| Testing | pytest Comprehensive pytest suite covering retrieval, reranking, parsing, caching, dependency analysis, and FastAPI endpoints. |
+| Testing | Comprehensive pytest suite covering retrieval, reranking, parsing, caching, dependency analysis, and FastAPI endpoints. |
 
 ---
 
